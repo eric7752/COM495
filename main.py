@@ -46,6 +46,8 @@ def simulate_round(consumers, producers):
     prices = []
     traded_consumers = []
     traded_producers = []
+    consumer_surplus = []
+    producer_surplus = []
 
     for con in consumers:
         con.traded = False
@@ -70,7 +72,10 @@ def simulate_round(consumers, producers):
 
         if consumer.wtp > producer.wta:
             price = uniform(producer.wta, consumer.wtp)
+            #price = producer.wta
             prices.append(price)
+            consumer_surplus.append(consumer.wtp - price)
+            producer_surplus.append(price - producer.wta)
             consumer.traded = True
             producer.traded = True
 
@@ -88,17 +93,21 @@ def simulate_round(consumers, producers):
     for prod in producers:
         prod.update_wta()
 
-    return consumers, producers, prices
+    return consumers, producers, prices, consumer_surplus, producer_surplus
 
 
 def simulate_n_rounds(n, consumers, producers):
     prices = []
+    cons_surplus = []
+    prod_surplus = []
     for i in range(n):
         print("round", i)
-        consumers, producers, round_prices = simulate_round(consumers, producers)
+        consumers, producers, round_prices, c_surplus, p_surplus = simulate_round(consumers, producers)
         prices.append(round_prices)
+        cons_surplus.append(c_surplus)
+        prod_surplus.append(p_surplus)
 
-    return consumers, producers, prices
+    return consumers, producers, prices, cons_surplus, prod_surplus
 
 
 def summary_plot(prices, num_agents):
@@ -120,7 +129,7 @@ def summary_plot(prices, num_agents):
     coef = np.polyfit(x_vals, averages, 3)
     poly1d_fn = np.poly1d(coef)
     axs[0].plot(x_vals, averages, x_vals, poly1d_fn(x_vals), '--k')
-
+    axs[0].set_ylabel('Average Price ($)')
 
     axs[1].set_title("Standard Deviation of Prices by Round")
     #coef2 = np.polyfit(np.log(x_vals), standard_devs, 1)
@@ -128,15 +137,27 @@ def summary_plot(prices, num_agents):
     coef2 = np.polyfit(x_vals, standard_devs, 3)
     poly1d_fn2 = np.poly1d(coef2)
     axs[1].plot(x_vals, standard_devs, x_vals, poly1d_fn2(x_vals), '--k')
+    axs[1].set_ylabel('SD ($)')
 
-    axs[2].set_title("Proportion of Transacting Individuals by Round")
+    axs[2].set_title("Proportion of Individuals Trading Each Round")
     #coef3 = np.polyfit(np.log(x_vals), num_trades, 1)
     #axs[2].plot(x_vals, num_trades, x_vals, coef3[1] + coef3[0] * np.log(x_vals), '--k')
     coef3 = np.polyfit(x_vals, num_trades, 3)
     poly1d_fn3 = np.poly1d(coef3)
     axs[2].plot(x_vals, num_trades, x_vals, poly1d_fn3(x_vals), '--k')
 
-    plt.show()
+    fig.text(0.5, 0.04, 'Round', ha='center')
+
+    plot_rounds = [prices[i] for i in range(len(prices)) if i % (len(prices) // 25) == 0]
+    plt.figure()
+    plt.boxplot(plot_rounds)
+    plt.xlabel('Round')
+    plt.ylabel('Price')
+    plt.title('Boxplot of Transaction Prices By Round')
+
+    x_vals, labels = plt.xticks()
+    new_x_vals = len(prices) // 25 * x_vals
+    plt.xticks(x_vals, new_x_vals, rotation='vertical')
 
 
 def supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, title):
@@ -179,6 +200,28 @@ def supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, title):
     plt.axis((0, x2, 0, y2))
 
 
+def utility(cons_surpluses, prod_surpluses):
+    fig, axs = plt.subplots(2, sharex='all')
+    cons_total = [sum(rd) for rd in cons_surpluses]
+    prod_total = [sum(rd) for rd in prod_surpluses]
+
+    cons_averages = [mean(rd) for rd in cons_surpluses]
+    prod_averages = [mean(rd) for rd in prod_surpluses]
+
+    axs[0].set_title("Average Surplus by Round")
+    axs[0].plot(cons_averages, label='Consumer')
+    axs[0].plot(prod_averages, label='Producer')
+    axs[0].legend()
+
+    axs[1].set_title("Total Surplus by Round")
+    axs[1].plot(cons_total, label='Consumer')
+    axs[1].plot(prod_total, label='Producer')
+    axs[1].legend()
+
+    fig.text(0.5, 0.04, 'Round', ha='center')
+    fig.text(0.04, 0.5, 'Surplus ($)', va='center', rotation='vertical')
+
+
 def end_preferences(consumers, producers):
     wtps = []
     wtas = []
@@ -210,13 +253,15 @@ def main():
     delta = eval(input("Enter delta:"))
     consumers, producers, wtps, wtas, min_wtp, max_wtp, min_wta, max_wta = generate_population(num_con, num_prod, delta)
     num_rounds = eval(input("Enter number of rounds to simulate: "))
-    consumers, producers, prices = simulate_n_rounds(num_rounds, consumers, producers)
+    consumers, producers, prices, cons_surpluses, prod_surpluses = simulate_n_rounds(num_rounds, consumers, producers)
     summary_plot(prices, len(consumers) + len(producers))
+    utility(cons_surpluses, prod_surpluses)
     supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, "First Round Supply and Demand Curves")
     end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta = end_preferences(consumers, producers)
     supply_demand(end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta,
                   "Final Round Supply and Demand Curves")
     plt.show()
+
 
 if __name__ == "__main__":
     main()
