@@ -100,6 +100,10 @@ def simulate_n_rounds(n, consumers, producers):
     prices = []
     cons_surplus = []
     prod_surplus = []
+
+    start_price_prod = {}
+    end_price_prod = {}
+
     for i in range(n):
         print("round", i)
         consumers, producers, round_prices, c_surplus, p_surplus = simulate_round(consumers, producers)
@@ -107,7 +111,14 @@ def simulate_n_rounds(n, consumers, producers):
         cons_surplus.append(c_surplus)
         prod_surplus.append(p_surplus)
 
-    return consumers, producers, prices, cons_surplus, prod_surplus
+        if i == 0:
+            tup = zip(round_prices, p_surplus)
+            start_price_prod = dict(tup)
+        elif i == n - 1:
+            tup = zip(round_prices, p_surplus)
+            end_price_prod = dict(tup)
+
+    return consumers, producers, prices, cons_surplus, prod_surplus, start_price_prod, end_price_prod
 
 
 def summary_plot(prices, num_agents):
@@ -162,7 +173,7 @@ def summary_plot(prices, num_agents):
 
 def supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, title):
     quantities = {}
-    price_range = np.linspace(min(min_wtp, min_wta), max(max_wta, max_wtp), 1000)
+    price_range = np.linspace(min(min_wtp, min_wta), max(max_wta, max_wtp), 100)
 
     min_diff = float('inf')
     min_diff_price = 0
@@ -200,7 +211,7 @@ def supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, title):
     plt.axis((0, x2, 0, y2))
 
 
-def utility(cons_surpluses, prod_surpluses):
+def utility(cons_surpluses, prod_surpluses, start_prod, end_prod):
     fig, axs = plt.subplots(2, sharex='all')
     cons_total = [sum(rd) for rd in cons_surpluses]
     prod_total = [sum(rd) for rd in prod_surpluses]
@@ -220,6 +231,38 @@ def utility(cons_surpluses, prod_surpluses):
 
     fig.text(0.5, 0.04, 'Round', ha='center')
     fig.text(0.04, 0.5, 'Surplus ($)', va='center', rotation='vertical')
+
+    plt.figure()
+
+    start_prod_sorted = sorted(start_prod.items())
+    end_prod_sorted = sorted(end_prod.items())
+
+    rnge1 = start_prod_sorted[-1][0] - start_prod_sorted[0][0]
+    rnge2 = end_prod_sorted[-1][0] - end_prod_sorted[0][0]
+
+    low_cutoff1 = (1/3) * rnge1 + start_prod_sorted[0][0]
+    low_cutoff2 = (1/3) * rnge2 + end_prod_sorted[0][0]
+    mid_cutoff1 = (2/3) * rnge1 + start_prod_sorted[0][0]
+    mid_cutoff2 = (2/3) * rnge2 + end_prod_sorted[0][0]
+
+    print("start:", low_cutoff1, mid_cutoff1)
+    print("end:", low_cutoff2, mid_cutoff2)
+
+    low_price_s = [x[1] for x in start_prod_sorted if x[0] < low_cutoff1]
+    mid_price_s = [x[1] for x in start_prod_sorted if low_cutoff1 <= x[0] < mid_cutoff1]
+    high_price_s = [x[1] for x in start_prod_sorted if mid_cutoff1 <= x[0]]
+
+    low_price_s_end = [x[1] for x in end_prod_sorted if x[0] < low_cutoff2]
+    mid_price_s_end = [x[1] for x in end_prod_sorted if low_cutoff2 <= x[0] < mid_cutoff2]
+    high_price_s_end = [x[1] for x in end_prod_sorted if mid_cutoff2 <= x[0]]
+
+    print("low start", mean(low_price_s))
+    print("mid start", mean(mid_price_s))
+    print("high start", mean(high_price_s))
+
+    print("low end", mean(low_price_s_end))
+    print("mid end", mean(mid_price_s_end))
+    print("high end", mean(high_price_s_end))
 
 
 def end_preferences(consumers, producers):
@@ -253,11 +296,17 @@ def main():
     delta = eval(input("Enter delta:"))
     consumers, producers, wtps, wtas, min_wtp, max_wtp, min_wta, max_wta = generate_population(num_con, num_prod, delta)
     num_rounds = eval(input("Enter number of rounds to simulate: "))
-    consumers, producers, prices, cons_surpluses, prod_surpluses = simulate_n_rounds(num_rounds, consumers, producers)
+    consumers, producers, prices, cons_surpluses, prod_surpluses, start_prod, end_prod = \
+        simulate_n_rounds(num_rounds, consumers, producers)
     summary_plot(prices, len(consumers) + len(producers))
-    utility(cons_surpluses, prod_surpluses)
+    utility(cons_surpluses, prod_surpluses, start_prod, end_prod)
+
     supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, "First Round Supply and Demand Curves")
     end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta = end_preferences(consumers, producers)
+    end_wtps.sort()
+    end_wtas.sort()
+    #print(len(end_wtps), end_wtps)
+    #print(len(end_wtas), end_wtas)
     supply_demand(end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta,
                   "Final Round Supply and Demand Curves")
     plt.show()

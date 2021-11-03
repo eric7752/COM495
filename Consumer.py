@@ -6,7 +6,7 @@ class Consumer:
 
     def update_wtp(self):
         if not self.traded:
-            self.wtp *= (1 + self.delta)
-            #self.wtp += 10
+            #self.wtp *= (1 + self.delta)
+            self.wtp += 10
         #else:
             #self.wtp *= 0.8

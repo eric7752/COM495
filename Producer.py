@@ -6,7 +6,7 @@ class Producer:
 
     def update_wta(self):
         if not self.traded:
-            self.wta *= (1 - self.delta)
-            #self.wta -= 10
+            #self.wta *= (1 - self.delta)
+            self.wta -= 10
         #else:
             #self.wta *= 1.2
