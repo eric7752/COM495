@@ -50,9 +50,15 @@ def simulate_round(consumers, producers):
     producer_surplus = []
 
     for con in consumers:
-        con.traded = False
+        if con.traded:
+            con.traded = False
+        else:
+            con.consecutive_trades = 0
     for prod in producers:
-        prod.traded = False
+        if prod.traded:
+            prod.traded = False
+        else:
+            prod.consecutive_trades = 0
 
     while still_trading:
         valid_trade = False
@@ -76,8 +82,11 @@ def simulate_round(consumers, producers):
             prices.append(price)
             consumer_surplus.append(consumer.wtp - price)
             producer_surplus.append(price - producer.wta)
+
             consumer.traded = True
+            consumer.consecutive_trades += 1
             producer.traded = True
+            producer.consecutive_trades += 1
 
             traded_consumers.append(consumer)
             consumers.remove(consumer)
@@ -171,7 +180,7 @@ def summary_plot(prices, num_agents):
     plt.xticks(x_vals, new_x_vals, rotation='vertical')
 
 
-def supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, title):
+def supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, prices, title):
     quantities = {}
     price_range = np.linspace(min(min_wtp, min_wta), max(max_wta, max_wtp), 100)
 
@@ -203,7 +212,10 @@ def supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, title):
     plt.plot([min_diff_quantity, min_diff_quantity], [0, min_diff_price], linestyle='dashed', color='r')
     plt.plot([0, min_diff_quantity], [min_diff_price, min_diff_price], linestyle='dashed', color='r')
 
-    plt.plot(min_diff_quantity, min_diff_price, 'ro', label='Equilibrium')
+    x = list(range(1, len(prices) + 1))
+    plt.scatter(x, prices, s=10, c="green", label="Transaction Prices")
+
+    plt.scatter(min_diff_quantity, min_diff_price, s=25, c="red", label='Equilibrium', zorder=10)
     plt.legend()
     plt.annotate(str((min_diff_quantity, round(min_diff_price, 2))), (min_diff_quantity, min_diff_price),
                  xytext=(10, 0), textcoords='offset points')
@@ -232,8 +244,6 @@ def utility(cons_surpluses, prod_surpluses, start_prod, end_prod):
     fig.text(0.5, 0.04, 'Round', ha='center')
     fig.text(0.04, 0.5, 'Surplus ($)', va='center', rotation='vertical')
 
-    plt.figure()
-
     start_prod_sorted = sorted(start_prod.items())
     end_prod_sorted = sorted(end_prod.items())
 
@@ -256,6 +266,9 @@ def utility(cons_surpluses, prod_surpluses, start_prod, end_prod):
     mid_price_s_end = [x[1] for x in end_prod_sorted if low_cutoff2 <= x[0] < mid_cutoff2]
     high_price_s_end = [x[1] for x in end_prod_sorted if mid_cutoff2 <= x[0]]
 
+    for lst in [low_price_s, mid_price_s, high_price_s, low_price_s_end, mid_price_s_end, high_price_s_end]:
+        lst += (50 - len(lst)) * [0]
+
     print("low start", mean(low_price_s))
     print("mid start", mean(mid_price_s))
     print("high start", mean(high_price_s))
@@ -263,6 +276,34 @@ def utility(cons_surpluses, prod_surpluses, start_prod, end_prod):
     print("low end", mean(low_price_s_end))
     print("mid end", mean(mid_price_s_end))
     print("high end", mean(high_price_s_end))
+
+    plt.figure()
+
+    start = [mean(low_price_s), mean(mid_price_s), mean(high_price_s)]
+    end = [mean(low_price_s_end), mean(mid_price_s_end), mean(high_price_s_end)]
+
+    bar_width = 0.25
+    br1 = np.arange(len(start))
+    br2 = [x + bar_width for x in br1]
+
+    plt.bar(br1, start, width=bar_width, label='Start of Simulation')
+    plt.bar(br2, end, width=bar_width, label='End of Simulation')
+
+    plt.xlabel('Pricing Level')
+    plt.ylabel('Average Surplus')
+    plt.xticks([r + bar_width for r in range(len(start))], ['Low Price', 'Medium Price', 'High Price'])
+
+    plt.legend()
+
+    # plt.figure()
+    #
+    # start_prices = start_prod.keys()
+    # start_surpluses = start_prod.values()
+    # end_prices = end_prod.keys()
+    # end_surpluses = end_prod.values()
+    #
+    # plt.scatter(start_prices, start_surpluses)
+    # plt.scatter(end_prices, end_surpluses)
 
 
 def end_preferences(consumers, producers):
@@ -301,13 +342,11 @@ def main():
     summary_plot(prices, len(consumers) + len(producers))
     utility(cons_surpluses, prod_surpluses, start_prod, end_prod)
 
-    supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, "First Round Supply and Demand Curves")
+    supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, prices[0], "First Round Supply and Demand Curves")
     end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta = end_preferences(consumers, producers)
     end_wtps.sort()
     end_wtas.sort()
-    #print(len(end_wtps), end_wtps)
-    #print(len(end_wtas), end_wtas)
-    supply_demand(end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta,
+    supply_demand(end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta, prices[-1],
                   "Final Round Supply and Demand Curves")
     plt.show()
 

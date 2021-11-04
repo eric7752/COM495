@@ -3,10 +3,11 @@ class Producer:
         self.wta = wta
         self.delta = delta
         self.traded = False
+        self.consecutive_trades = 0
 
     def update_wta(self):
         if not self.traded:
             #self.wta *= (1 - self.delta)
             self.wta -= 10
-        #else:
-            #self.wta *= 1.2
+        #elif self.consecutive_trades >= 3:
+            #self.wta += 2
