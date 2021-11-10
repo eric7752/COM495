@@ -4,6 +4,8 @@ class Consumer:
         self.delta = delta
         self.traded = False
         self.consecutive_trades = 0
+        self.prices = []
+        self.surplus = []
 
     def update_wtp(self):
         if not self.traded:

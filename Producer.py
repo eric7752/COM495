@@ -4,6 +4,9 @@ class Producer:
         self.delta = delta
         self.traded = False
         self.consecutive_trades = 0
+        self.prices = []
+        self.surplus = []
+        self.price_group = 0
 
     def update_wta(self):
         if not self.traded:
