@@ -1,15 +1,16 @@
 class Consumer:
-    def __init__(self, wtp, delta):
+    def __init__(self, wtp, delta, is_delta):
         self.wtp = wtp
         self.delta = delta
         self.traded = False
         self.consecutive_trades = 0
         self.prices = []
         self.surplus = []
+        self.delta_scale = is_delta
 
     def update_wtp(self):
         if not self.traded:
-            #self.wtp *= (1 + self.delta)
-            self.wtp += 10
-        #elif self.consecutive_trades >= 3:
-            #self.wtp -= 2
+            if self.delta_scale:
+                self.wtp *= (1 + self.delta)
+            else:
+                self.wtp += 10

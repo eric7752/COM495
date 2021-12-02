@@ -1,12 +1,17 @@
 from random import *
 from Consumer import *
 from Producer import *
+from ApplicationWindow import *
 from statistics import *
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 
-def generate_population(num_con, num_prod, delta):
+def generate_population(num_con, num_prod, is_delta, delta, norm_dist):
     consumers = []
     producers = []
 
@@ -19,24 +24,26 @@ def generate_population(num_con, num_prod, delta):
     max_wta = -float('inf')
 
     for i in range(num_con):
-        wtp = np.random.uniform(0, 600)
-        #wtp = np.random.normal(300, 100)
+        if norm_dist:
+            wtp = np.random.normal(300, 100)
+        else:
+            wtp = np.random.uniform(0, 600)
         if wtp < min_wtp:
             min_wtp = wtp
         if wtp > max_wtp:
             max_wtp = wtp
         wtps.append(wtp)
-        consumers.append(Consumer(wtp, delta))
+        consumers.append(Consumer(wtp, delta, is_delta))
 
     for i in range(num_prod):
-        wta = randrange(200, 800)
+        wta = np.random.uniform(200, 800)
         #wta = np.random.normal(500, 100)
         if wta > max_wta:
             max_wta = wta
         if wta < min_wta:
             min_wta = wta
         wtas.append(wta)
-        producers.append(Producer(wta, delta))
+        producers.append(Producer(wta, delta, is_delta))
 
     return consumers, producers, wtps, wtas, min_wtp, max_wtp, min_wta, max_wta
 
@@ -44,10 +51,14 @@ def generate_population(num_con, num_prod, delta):
 def simulate_round(consumers, producers):
     still_trading = True
     prices = []
+
     traded_consumers = []
     traded_producers = []
+
     consumer_surplus = []
     producer_surplus = []
+
+    wtp_price_dict = {}
 
     for con in consumers:
         if con.traded:
@@ -78,6 +89,7 @@ def simulate_round(consumers, producers):
 
         if consumer.wtp > producer.wta:
             price = uniform(producer.wta, consumer.wtp)
+            #price = consumer.wtp
             #price = producer.wta
             prices.append(price)
             consumer.prices.append(price)
@@ -88,6 +100,9 @@ def simulate_round(consumers, producers):
 
             producer_surplus.append(price - producer.wta)
             producer.surplus.append(price - producer.wta)
+
+            wtp_price_dict[consumer.wtp] = price
+            #wtp_price_dict[producer.wta] = price
 
             consumer.traded = True
             consumer.consecutive_trades += 1
@@ -104,6 +119,7 @@ def simulate_round(consumers, producers):
     for no_trade_con in consumers:
         no_trade_con.prices.append(0)
         no_trade_con.surplus.append(0)
+        wtp_price_dict[no_trade_con.wtp] = -100
 
     for no_trade_prod in producers:
         no_trade_prod.prices.append(0)
@@ -117,7 +133,7 @@ def simulate_round(consumers, producers):
     for prod in producers:
         prod.update_wta()
 
-    return consumers, producers, prices, consumer_surplus, producer_surplus
+    return consumers, producers, prices, consumer_surplus, producer_surplus, wtp_price_dict
 
 
 def simulate_n_rounds(n, consumers, producers):
@@ -130,7 +146,7 @@ def simulate_n_rounds(n, consumers, producers):
 
     for i in range(n):
         print("round", i)
-        consumers, producers, round_prices, c_surplus, p_surplus = simulate_round(consumers, producers)
+        consumers, producers, round_prices, c_surplus, p_surplus, wtp_price_dict = simulate_round(consumers, producers)
         prices.append(round_prices)
         cons_surplus.append(c_surplus)
         prod_surplus.append(p_surplus)
@@ -138,15 +154,18 @@ def simulate_n_rounds(n, consumers, producers):
         if i == 0:
             tup = zip(round_prices, p_surplus)
             start_price_prod = dict(tup)
+            sorted_initial_wtp_price_dict = dict(sorted(wtp_price_dict.items(), reverse=True))
 
         elif i == n - 1:
             tup = zip(round_prices, p_surplus)
             end_price_prod = dict(tup)
+            sorted_final_wtp_price_dict = dict(sorted(wtp_price_dict.items(), reverse=True))
 
-    return consumers, producers, prices, cons_surplus, prod_surplus, start_price_prod, end_price_prod
+    return consumers, producers, prices, cons_surplus, prod_surplus, start_price_prod, end_price_prod, \
+           sorted_initial_wtp_price_dict, sorted_final_wtp_price_dict
 
 
-def summary_plot(prices, num_agents):
+def summary_plot(prices, num_agents, box_plot):
     averages = []
     standard_devs = []
     num_trades = []
@@ -185,6 +204,7 @@ def summary_plot(prices, num_agents):
 
     fig.text(0.5, 0.04, 'Round', ha='center')
 
+def box_plot(prices):
     plot_rounds = [prices[i] for i in range(len(prices)) if i % (len(prices) // 25) == 0]
     plt.figure()
     plt.boxplot(plot_rounds)
@@ -197,7 +217,7 @@ def summary_plot(prices, num_agents):
     plt.xticks(x_vals, new_x_vals, rotation='vertical')
 
 
-def supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, prices, title):
+def supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, prices, prices2, title):
     quantities = {}
     price_range = np.linspace(min(min_wtp, min_wta), max(max_wta, max_wtp), 100)
 
@@ -230,7 +250,9 @@ def supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, prices, title)
     plt.plot([0, min_diff_quantity], [min_diff_price, min_diff_price], linestyle='dashed', color='r')
 
     x = list(range(1, len(prices) + 1))
-    plt.scatter(x, prices, s=10, c="green", label="Transaction Prices")
+    x2 = list(range(1, len(prices2) + 1))
+    plt.scatter(x, prices, s=10, c="green", label="Transaction Prices (Start)")
+    plt.scatter(x2, prices2, s=5, c="orangered", label="Transaction Prices (End)")
 
     plt.scatter(min_diff_quantity, min_diff_price, s=25, c="red", label='Equilibrium', zorder=10)
     plt.legend()
@@ -324,6 +346,9 @@ def end_preferences(consumers, producers):
         if producer.wta < min_wta:
             min_wta = producer.wta
 
+    wtps.sort()
+    wtas.sort()
+
     return wtps, wtas, min_wtp, max_wtp, min_wta, max_wta
 
 
@@ -413,25 +438,53 @@ def producer_surplus_over_time(producers, num_rounds):
 
 
 def main():
-    num_con = eval(input("Enter number of consumers: "))
-    num_prod = eval(input("Enter number of producers: "))
-    delta = eval(input("Enter delta:"))
-    consumers, producers, wtps, wtas, min_wtp, max_wtp, min_wta, max_wta = generate_population(num_con, num_prod, delta)
-    set_prod_flags(producers, wtas)
-    num_rounds = eval(input("Enter number of rounds to simulate: "))
-    consumers, producers, prices, cons_surpluses, prod_surpluses, start_prod, end_prod = \
-        simulate_n_rounds(num_rounds, consumers, producers)
-    summary_plot(prices, len(consumers) + len(producers))
-    utility(cons_surpluses, prod_surpluses, start_prod, end_prod, num_prod)
+    app = QtWidgets.QApplication(sys.argv)
+    application = ApplicationWindow()
+    application.show()
+    app.exec_()
 
-    supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, prices[0], "First Round Supply and Demand Curves")
-    end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta = end_preferences(consumers, producers)
-    end_wtps.sort()
-    end_wtas.sort()
-    supply_demand(end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta, prices[-1],
-                  "Final Round Supply and Demand Curves")
-    producer_surplus_over_time(producers, num_rounds)
-    plt.show()
+    if application.ui.ran:
+
+        num_con = application.ui.consumers
+        num_prod = application.ui.producers
+        delta = application.ui.delta
+        num_rounds = application.ui.rounds
+        is_delta = application.ui.is_delta
+        norm_dist = application.ui.normal_dist
+        plots = application.ui.plots
+
+        consumers, producers, wtps, wtas, min_wtp, max_wtp, min_wta, max_wta = \
+            generate_population(num_con, num_prod, is_delta, delta, norm_dist)
+
+        set_prod_flags(producers, wtas)
+
+        consumers, producers, prices, cons_surpluses, prod_surpluses, start_prod, end_prod, sorted_initial_wtp_price_dict, \
+            sorted_final_wtp_price_dict = simulate_n_rounds(num_rounds, consumers, producers)
+
+        end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta = end_preferences(consumers, producers)
+
+        if 1 in plots:
+            summary_plot(prices, len(consumers) + len(producers), box_plot)
+
+        if 2 in plots:
+            supply_demand(wtps, wtas, min_wtp, max_wtp, min_wta, max_wta, list(sorted_initial_wtp_price_dict.values()),
+                          list(sorted_final_wtp_price_dict.values()), "First Round Supply and Demand Curves")
+
+        if 3 in plots:
+            supply_demand(end_wtps, end_wtas, end_min_wtp, end_max_wtp, end_min_wta, end_max_wta,
+                          list(sorted_initial_wtp_price_dict.values()), list(sorted_final_wtp_price_dict.values()),
+                          "Final Round Supply and Demand Curves")
+
+        if 4 in plots:
+            box_plot(prices)
+
+        if 5 in plots:
+            utility(cons_surpluses, prod_surpluses, start_prod, end_prod, num_prod)
+
+        if 6 in plots:
+            producer_surplus_over_time(producers, num_rounds)
+
+        plt.show()
 
 
 if __name__ == "__main__":
